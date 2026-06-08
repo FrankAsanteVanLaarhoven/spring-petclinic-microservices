@@ -130,8 +130,10 @@ jobs:
             --arg sha "$SHA" \
             --arg short_sha "$SHORT" \
             --arg services "$SERVICES" \
+            --arg image_tag "$SHORT" \
+            --arg tag "$SHORT" \
             --arg env "dev" \
-            '{sha:$sha, short_sha:$short_sha, services:$services, env:$env}' > payload.json
+            '{sha:$sha, short_sha:$short_sha, image_tag:$image_tag, tag:$tag, services:$services, env:$env}' > payload.json
           echo "json=$(cat payload.json)" >> "$GITHUB_OUTPUT"
 
       - name: Fire repository_dispatch to platform repo
