@@ -110,22 +110,34 @@ jobs:
           docker push "${TARGET}"
           echo "Pushed ${TARGET}"
 
-  # ── Notify platform repo → triggers update-image-tags ──────────────────────
+# ── Notify platform repo → triggers update-image-tags ──────────────────────
   dispatch-to-platform:
-    needs: build-and-push
-    if: ${{ always() && needs.build-and-push.result == 'success' }}
+    needs: [detect-changes, build-and-push]
+    if: ${{ always() && needs.build-and-push.result == 'success' && needs.detect-changes.outputs.matrix != '[]' && needs.detect-changes.outputs.matrix != '' }}
     runs-on: ubuntu-latest
 
     steps:
+      - name: Build repository_dispatch payload
+        id: payload
+        shell: bash
+        env:
+          SHA: ${{ github.sha }}
+          SERVICES_JSON: ${{ needs.detect-changes.outputs.matrix }}
+        run: |
+          SHORT="${SHA:0:7}"
+          SERVICES="$(jq -r 'join(" ")' <<< "$SERVICES_JSON")"
+          jq -cn \
+            --arg sha "$SHA" \
+            --arg short_sha "$SHORT" \
+            --arg services "$SERVICES" \
+            --arg env "dev" \
+            '{sha:$sha, short_sha:$short_sha, services:$services, env:$env}' > payload.json
+          echo "json=$(cat payload.json)" >> "$GITHUB_OUTPUT"
+
       - name: Fire repository_dispatch to platform repo
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.PLATFORM_REPO_TOKEN }}
           repository: FrankAsanteVanLaarhoven/pet-clinic
           event-type: app-image-built
-          client-payload: |
-            {
-              "sha": "${{ github.sha }}",
-              "short_sha": "${{ github.sha && format('{0}', github.sha) }}",
-              "services": "${{ join(fromJson(needs.detect-changes.outputs.matrix), ' ') }}"
-            }
+          client-payload: ${{ steps.payload.outputs.json }}
